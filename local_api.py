@@ -2,7 +2,7 @@ import json
 
 import requests
 
-BASE_URL = "http://127.0.0.1:8000"
+BASE_URL = "http://127.0.0.1:8001"
 # TODO: send a GET using the URL http://127.0.0.1:8000
 
 def main() -> None:

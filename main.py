@@ -1,76 +1,89 @@
 import os
+from typing import Dict, Any
 
 import pandas as pd
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
-from ml.data import apply_label, process_data
+from ml.data import process_data, apply_label
 from ml.model import inference, load_model
 
-# DO NOT MODIFY
-class Data(BaseModel):
-    age: int = Field(..., example=37)
-    workclass: str = Field(..., example="Private")
-    fnlgt: int = Field(..., example=178356)
-    education: str = Field(..., example="HS-grad")
-    education_num: int = Field(..., example=10, alias="education-num")
-    marital_status: str = Field(
-        ..., example="Married-civ-spouse", alias="marital-status"
-    )
-    occupation: str = Field(..., example="Prof-specialty")
-    relationship: str = Field(..., example="Husband")
-    race: str = Field(..., example="White")
-    sex: str = Field(..., example="Male")
-    capital_gain: int = Field(..., example=0, alias="capital-gain")
-    capital_loss: int = Field(..., example=0, alias="capital-loss")
-    hours_per_week: int = Field(..., example=40, alias="hours-per-week")
-    native_country: str = Field(..., example="United-States", alias="native-country")
+app = FastAPI()
+
+# Paths (from repo root)
+PROJECT_PATH = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(PROJECT_PATH, "model", "model.pkl")
+ENCODER_PATH = os.path.join(PROJECT_PATH, "model", "encoder.pkl")
+LB_PATH = os.path.join(PROJECT_PATH, "model", "lb.pkl")
+
+CATEGORICAL_FEATURES = [
+    "workclass",
+    "education",
+    "marital-status",
+    "occupation",
+    "relationship",
+    "race",
+    "sex",
+    "native-country",
+]
+
+
+class CensusRow(BaseModel):
+    age: int
+    workclass: str
+    fnlgt: int
+    education: str
+    education_num: int = Field(..., alias="education-num")
+    marital_status: str = Field(..., alias="marital-status")
+    occupation: str
+    relationship: str
+    race: str
+    sex: str
+    capital_gain: int = Field(..., alias="capital-gain")
+    capital_loss: int = Field(..., alias="capital-loss")
+    hours_per_week: int = Field(..., alias="hours-per-week")
+    native_country: str = Field(..., alias="native-country")
+
     class Config:
         populate_by_name = True
 
 
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+def _ensure_artifacts_exist() -> None:
+    """Raise a clear error if model artifacts haven't been created yet."""
+    missing = [p for p in (MODEL_PATH, ENCODER_PATH, LB_PATH) if not os.path.exists(p)]
+    if missing:
+        raise HTTPException(
+            status_code=500,
+            detail=(
+                "Missing model artifacts. Run `python train_model.py` to create them. "
+                f"Missing: {missing}"
+            ),
+        )
 
-ENCODER_PATH = os.path.join(PROJECT_ROOT, "model", "encoder.pkl") # TODO: enter the path for the saved encoder 
-encoder = load_model(ENCODER_PATH)
 
-MODEL_PATH = os.path.join(PROJECT_ROOT, "model", "model.pkl") # TODO: enter the path for the saved model 
-model = load_model(MODEL_PATH)
-
-# TODO: create a RESTful API using FastAPI
-app = FastAPI() # your code here
-
-# TODO: create a GET on the root giving a welcome message
 @app.get("/")
-async def get_root():
-    """ Say hello!"""
-    return {"message": "Hello from the API!"}# your code here
+def read_root() -> Dict[str, Any]:
+    return {"message": "Hello from the API!"}
 
 
-# TODO: create a POST on a different path that does model inference
 @app.post("/data/")
-async def post_inference(data: Data):
-    # DO NOT MODIFY: turn the Pydantic model into a dict.
-    data_dict = data.dict(by_alias=True)
-    df = pd.DataFrame.from_dict({k: [v] for k, v in data_dict.items()})
+def predict(data: CensusRow) -> Dict[str, Any]:
+    _ensure_artifacts_exist()
 
-    cat_features = [
-        "workclass",
-        "education",
-        "marital-status",
-        "occupation",
-        "relationship",
-        "race",
-        "sex",
-        "native-country",
-    ]
-   
+    model = load_model(MODEL_PATH)
+    encoder = load_model(ENCODER_PATH)
+    lb = load_model(LB_PATH)
+
+    df = pd.DataFrame([data.model_dump(by_alias=True)])
+
     X, _, _, _ = process_data(
         df,
-        categorical_features=CAT_FEATURES,
+        categorical_features=CATEGORICAL_FEATURES,
+        label=None,  # no label provided for inference
         training=False,
         encoder=encoder,
+        lb=lb,
     )
 
     pred = inference(model, X)
-    return {"result": apply_label(pred)
+    return {"prediction": apply_label(pred)}

@@ -5,33 +5,26 @@ from sklearn.model_selection import train_test_split
 
 from ml.data import process_data
 from ml.model import (
-    compute_model_metrics,
-    inference,
-    load_model,
-    performance_on_categorical_slice,
-    save_model,
     train_model,
+    inference,
+    compute_model_metrics,
+    save_model,
 )
-# TODO: load the cencus.csv data
-def main() -> None:
-    project_root = os.path.dirname(os.path.abspath(__file__))
-    data_path = os.path.join(project_root, "data", "census.csv")
-    model_dir = os.path.join(project_root, "model")
-    os.makedirs(model_dir, exist_ok=True)
 
-    df = pd.read_csv(data_path)
+# Project paths
+PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
+DATA_PATH = os.path.join(PROJECT_ROOT, "data", "census.csv")
+MODEL_DIR = os.path.join(PROJECT_ROOT, "model")
 
-# TODO: split the provided data to have a train dataset and a test dataset
-# Optional enhancement, use K-fold cross validation instead of a train-test split.
-    train_df, test_df = train_test_split(
-        df,
-        test_size=0.2,
-        random_state=42,
-        stratify=df[LABEL],
-    )
+MODEL_PATH = os.path.join(MODEL_DIR, "model.pkl")
+ENCODER_PATH = os.path.join(MODEL_DIR, "encoder.pkl")
+LB_PATH = os.path.join(MODEL_DIR, "lb.pkl")
 
-# DO NOT MODIFY
-cat_features = [
+SLICE_OUTPUT_PATH = os.path.join(PROJECT_ROOT, "slice_output.txt")
+
+# Project constants
+LABEL = "salary"
+CAT_FEATURES = [
     "workclass",
     "education",
     "marital-status",
@@ -42,68 +35,81 @@ cat_features = [
     "native-country",
 ]
 
-# TODO: use the process_data function provided to process the data.
-X_train, y_train, encoder, lb = process_data(
-    train_df, categorical_features=CAT_FEATURES, label=LABEL, training=True
-    # your code here
-    # use the train dataset 
-    # use training=True
-    # do not need to pass encoder and lb as input
+
+def main() -> None:
+    os.makedirs(MODEL_DIR, exist_ok=True)
+
+    # Load data
+    df = pd.read_csv(DATA_PATH)
+
+    # Train/test split
+    train_df, test_df = train_test_split(
+        df,
+        test_size=0.20,
+        random_state=42,
+        stratify=df[LABEL],
     )
 
-X_test, y_test, _, _ = process_data(
-    test,
-    categorical_features=cat_features,
-    label="salary",
-    training=False,
-    encoder=encoder,
-    lb=lb,
-)
+    # Process training data
+    X_train, y_train, encoder, lb = process_data(
+        train_df,
+        categorical_features=CAT_FEATURES,
+        label=LABEL,
+        training=True,
+    )
 
-# TODO: use the train_model function to train the model on the training dataset
-model = train_model(X_train, y_train)# your code here
+    # Process test data using fitted encoder/lb
+    X_test, y_test, _, _ = process_data(
+        test_df,
+        categorical_features=CAT_FEATURES,
+        label=LABEL,
+        training=False,
+        encoder=encoder,
+        lb=lb,
+    )
 
-# save the model and the encoder
-    model_path = os.path.join(model_dir, "model.pkl")
-    encoder_path = os.path.join(model_dir, "encoder.pkl")
-    lb_path = os.path.join(model_dir, "lb.pkl")
+    # Train model
+    model = train_model(X_train, y_train)
 
-    save_model(model, model_path)
-    save_model(encoder, encoder_path)
-    save_model(lb, lb_path)
+    # Save artifacts
+    save_model(model, MODEL_PATH)
+    save_model(encoder, ENCODER_PATH)
+    save_model(lb, LB_PATH)
 
-    print(f"Model saved to {model_path}")
-    print(f"Encoder saved to {encoder_path}")
-    print(f"Label binarizer saved to {lb_path}") 
+    print(f"Model saved to {MODEL_PATH}")
+    print(f"Encoder saved to {ENCODER_PATH}")
+    print(f"Label binarizer saved to {LB_PATH}")
 
-# TODO: use the inference function to run the model inferences on the test dataset.
-preds = inference(model_loaded, X_test) # your code here
+    # Evaluate on full test set
+    preds = inference(model, X_test)
+    precision, recall, f1 = compute_model_metrics(y_test, preds)
+    print(f"Precision: {precision:.4f} | Recall: {recall:.4f} | F1: {f1:.4f}")
 
-# Calculate and print the metrics
-p, r, fb = compute_model_metrics(y_test, preds)
-print(f"Precision: {p:.4f} | Recall: {r:.4f} | F1: {fb:.4f}")
-
-# TODO: compute the performance on model slices using the performance_on_categorical_slice function
-# iterate through the categorical features
-    slice_output_path = os.path.join(project_root, "slice_output.txt")
-    with open(slice_output_path, "w", encoding="utf-8") as f:
+    # Slice performance 
+    with open(SLICE_OUTPUT_PATH, "w", encoding="utf-8") as f:
         for feature in CAT_FEATURES:
-            for value in sorted(test_df[feature].dropna().unique()):
-                precision, recall, fbeta = performance_on_categorical_slice(
-                    data=test_df,
-                    column_name=feature,
-                    slice_value=value,
+            values = sorted(test_df[feature].dropna().unique())
+            for value in values:
+                slice_df = test_df[test_df[feature] == value]
+                if slice_df.shape[0] == 0:
+                    continue
+
+                X_slice, y_slice, _, _ = process_data(
+                    slice_df,
                     categorical_features=CAT_FEATURES,
                     label=LABEL,
+                    training=False,
                     encoder=encoder,
                     lb=lb,
-                    model=model_loaded,
                 )
-                count = int((test_df[feature] == value).sum())
-                f.write(f"Precision: {precision:.4f} | Recall: {recall:.4f} | F1: {fbeta:.4f}\n")
-                f.write(f"{feature}: {value}, Count: {count}\n")
 
-    print(f"Slice output saved to {slice_output_path}")
+                slice_preds = inference(model, X_slice)
+                p, r, fb = compute_model_metrics(y_slice, slice_preds)
+
+                f.write(f"Precision: {p:.4f} | Recall: {r:.4f} | F1: {fb:.4f}\n")
+                f.write(f"{feature}: {value}, Count: {slice_df.shape[0]}\n")
+
+    print(f"Slice output saved to {SLICE_OUTPUT_PATH}")
 
 
 if __name__ == "__main__":
