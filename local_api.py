@@ -5,6 +5,7 @@ import requests
 BASE_URL = "http://127.0.0.1:8001"
 # TODO: send a GET using the URL http://127.0.0.1:8000
 
+
 def main() -> None:
     r = requests.get(f"{BASE_URL}/", timeout=10)
     print("GET status code:", r.status_code)

@@ -85,7 +85,7 @@ def main() -> None:
     precision, recall, f1 = compute_model_metrics(y_test, preds)
     print(f"Precision: {precision:.4f} | Recall: {recall:.4f} | F1: {f1:.4f}")
 
-    # Slice performance 
+    # Slice performance
     with open(SLICE_OUTPUT_PATH, "w", encoding="utf-8") as f:
         for feature in CAT_FEATURES:
             values = sorted(test_df[feature].dropna().unique())

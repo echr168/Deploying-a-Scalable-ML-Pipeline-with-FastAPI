@@ -10,7 +10,9 @@ from sklearn.linear_model import SGDClassifier
 from sklearn.metrics import fbeta_score, precision_score, recall_score
 
 from ml.data import process_data
+
 # TODO: add necessary import
+
 
 # Optional: implement hyperparameter tuning.
 def train_model(X_train: np.ndarray, y_train: np.ndarray) -> BaseEstimator:
@@ -26,7 +28,9 @@ def train_model(X_train: np.ndarray, y_train: np.ndarray) -> BaseEstimator:
     return model
 
 
-def compute_model_metrics(y: np.ndarray, preds: np.ndarray) -> Tuple[float, float, float]:
+def compute_model_metrics(
+    y: np.ndarray, preds: np.ndarray
+) -> Tuple[float, float, float]:
     """
     Validates the trained machine learning model using precision, recall, and F1.
 
@@ -49,7 +53,7 @@ def compute_model_metrics(y: np.ndarray, preds: np.ndarray) -> Tuple[float, floa
 
 
 def inference(model: BaseEstimator, X: np.ndarray) -> np.ndarray:
-    """ Run model inferences and return the predictions.
+    """Run model inferences and return the predictions.
 
     Inputs
     ------
@@ -65,8 +69,9 @@ def inference(model: BaseEstimator, X: np.ndarray) -> np.ndarray:
     # TODO: implement the function
     return model.predict(X)
 
+
 def save_model(obj: Any, path: str) -> None:
-    """ Serializes model to a file.
+    """Serializes model to a file.
 
     Inputs
     ------
@@ -82,8 +87,9 @@ def save_model(obj: Any, path: str) -> None:
     with open(path, "wb") as f:
         pickle.dump(obj, f)
 
+
 def load_model(path: str) -> Any:
-    """ Loads pickle file from `path` and returns it."""
+    """Loads pickle file from `path` and returns it."""
     # TODO: implement the function
     with open(path, "rb") as f:
         return pickle.load(f)
@@ -92,7 +98,7 @@ def load_model(path: str) -> Any:
 def performance_on_categorical_slice(
     data, column_name, slice_value, categorical_features, label, encoder, lb, model
 ) -> Tuple[float, float, float]:
-    """ Computes the model metrics on a slice of the data specified by a column name and
+    """Computes the model metrics on a slice of the data specified by a column name and
 
     Processes the data using one hot encoding for the categorical features and a
     label binarizer for the labels. This can be used in either training or
@@ -137,6 +143,8 @@ def performance_on_categorical_slice(
         lb=lb,
     )
 
-    preds = inference(model, X_slice) # your code here to get prediction on X_slice using the inference function
+    preds = inference(
+        model, X_slice
+    )  # your code here to get prediction on X_slice using the inference function
     precision, recall, fbeta = compute_model_metrics(y_slice, preds)
     return precision, recall, fbeta
